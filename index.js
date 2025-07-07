@@ -1,50 +1,57 @@
+import express from 'express';
+import fetch from 'node-fetch';
+import dotenv from 'dotenv';
 
-const express = require('express');
-const bodyParser = require('body-parser');
-const axios = require('axios');
+dotenv.config();
+
 const app = express();
+app.use(express.json());
 
-// Replace this with your bot token
-const TELEGRAM_BOT_TOKEN = '7538825089:AAETh4Qp0VkANsv9YHvHNPZTm-eEGSFGlpA';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-app.use(bodyParser.json());
-
-app.post('/send-message', async (req, res) => {
-  const {
-    chat_id,
-    text,
-    photo,
-    parse_mode = 'Markdown'
-  } = req.body;
-
-  try {
-    if (photo) {
-      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-        chat_id,
-        caption: text,
-        photo,
-        parse_mode
-      });
-    } else {
-      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        chat_id,
-        text,
-        parse_mode
-      });
-    }
-
-    res.status(200).json({ success: true });
-  } catch (err) {
-    console.error('Telegram error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to send message to Telegram.' });
-  }
-});
+if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  console.error('Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in env');
+  process.exit(1);
+}
 
 app.get('/', (req, res) => {
-  res.send('Bitafam Render Bot is alive ⚡');
+  res.send('Bitafam Telegram Render Bot is alive!');
+});
+
+app.post('/', async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: 'message field is required' });
+    }
+
+    const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+    const response = await fetch(telegramUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Telegram API error:', errorData);
+      return res.status(500).json({ error: 'Failed to send message to Telegram' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error in POST /:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Telegram Proxy running on port ${PORT}`);
+  console.log(`Server listening on port ${PORT}`);
 });
